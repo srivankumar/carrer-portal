@@ -14,6 +14,8 @@ export const getActiveJobs = async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
+    // Cache for 30 seconds, revalidate in background
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
     res.json({ jobs: data });
   } catch (error) {
     console.error('Get jobs error:', error);
@@ -37,6 +39,8 @@ export const getAllJobs = async (req, res) => {
       isExpired: new Date(job.application_deadline) < new Date() || !job.is_active,
     }));
 
+    // Cache for 30 seconds, revalidate in background
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
     res.json({ jobs: jobsWithStatus });
   } catch (error) {
     console.error('Get all jobs error:', error);

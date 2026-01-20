@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { jobApi, applicationApi } from '../services/api';
+import { useAllJobs, useDeleteJob, useEndJobApplication } from '../hooks/useJobs';
+import { useAllApplications } from '../hooks/useApplications';
 import {
   Briefcase,
   Calendar,
@@ -13,6 +14,7 @@ import {
   XCircle,
   Eye,
   Search,
+  RefreshCw,
 } from 'lucide-react';
 
 interface Job {
@@ -34,53 +36,27 @@ interface Stats {
 }
 
 export default function AdminDashboard() {
-  const [jobs, setJobs] = useState<Job[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [stats, setStats] = useState<Stats>({
-    totalJobs: 0,
-    activeJobs: 0,
-    totalApplications: 0,
-    shortlisted: 0,
-  });
-  const [loading, setLoading] = useState(true);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  
+  // Use React Query hooks for caching
+  const { data: jobs = [], isLoading: jobsLoading, refetch: refetchJobs } = useAllJobs();
+  const { data: applications = [], isLoading: appsLoading } = useAllApplications();
+  const deleteJobMutation = useDeleteJob();
+  const endApplicationMutation = useEndJobApplication();
+  
+  const loading = jobsLoading || appsLoading;
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-
-    const [jobsResponse, applicationsResponse] = await Promise.all([
-      jobApi.getAllJobs(),
-      applicationApi.getAllApplications(),
-    ]);
-
-    if (jobsResponse.jobs) {
-      setJobs(jobsResponse.jobs);
-      setStats((prev) => ({
-        ...prev,
-        totalJobs: jobsResponse.jobs.length,
-        activeJobs: jobsResponse.jobs.filter(
-          (j: Job) => j.is_active && new Date(j.application_deadline) >= new Date()
-        ).length,
-      }));
-    }
-
-    if (applicationsResponse.applications) {
-      setStats((prev) => ({
-        ...prev,
-        totalApplications: applicationsResponse.applications.length,
-        shortlisted: applicationsResponse.applications.filter(
-          (a: any) => a.status === 'shortlisted'
-        ).length,
-      }));
-    }
-
-    setLoading(false);
-  };
+  // Calculate stats from cached data
+  const stats = useMemo(() => ({
+    totalJobs: jobs.length,
+    activeJobs: jobs.filter(
+      (j: Job) => j.is_active && new Date(j.application_deadline) >= new Date()
+    ).length,
+    totalApplications: applications.length,
+    shortlisted: applications.filter((a: any) => a.status === 'shortlisted').length,
+  }), [jobs, applications]);
 
   const handleLogout = () => {
     logout();
@@ -96,15 +72,15 @@ export default function AdminDashboard() {
       return;
     }
 
-    const response = await jobApi.endApplication(jobId);
-
-    if (response.message) {
-      alert(
-        `Application ended successfully!\nShortlisted: ${response.shortlisted}\nRejected: ${response.rejected}\nEmails have been sent to all candidates.`
-      );
-      fetchData();
-    } else {
-      alert('Failed to end application');
+    try {
+      const response = await endApplicationMutation.mutateAsync(jobId);
+      if (response.message) {
+        alert(
+          `Application ended successfully!\nShortlisted: ${response.shortlisted}\nRejected: ${response.rejected}\nEmails have been sent to all candidates.`
+        );
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to end application');
     }
   };
 
@@ -113,13 +89,11 @@ export default function AdminDashboard() {
       return;
     }
 
-    const response = await jobApi.deleteJob(jobId);
-
-    if (response.message) {
+    try {
+      await deleteJobMutation.mutateAsync(jobId);
       alert('Job deleted successfully');
-      fetchData();
-    } else {
-      alert('Failed to delete job');
+    } catch (error: any) {
+      alert(error.message || 'Failed to delete job');
     }
   };
 
@@ -131,7 +105,7 @@ export default function AdminDashboard() {
     });
   };
 
-  const filteredJobs = jobs.filter((job) => {
+  const filteredJobs = jobs.filter((job: Job) => {
     const query = searchQuery.toLowerCase();
     return (
       job.title.toLowerCase().includes(query) ||
@@ -190,7 +164,17 @@ export default function AdminDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-6">Dashboard Overview</h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-900">Dashboard Overview</h1>
+            <button
+              onClick={() => refetchJobs()}
+              className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
+              title="Hard refresh - fetch latest data"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh</span>
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">

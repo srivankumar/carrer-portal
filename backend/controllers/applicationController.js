@@ -150,6 +150,8 @@ export const getUserApplications = async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
+    // Cache for 30 seconds
+    res.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     res.json({ applications: data });
   } catch (error) {
     console.error('Get user applications error:', error);
@@ -189,6 +191,8 @@ export const getAllApplications = async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
+    // Cache for 30 seconds
+    res.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     res.json({ applications: data });
   } catch (error) {
     console.error('Get all applications error:', error);
@@ -242,6 +246,8 @@ export const getTopCandidates = async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
+    // Cache for 30 seconds
+    res.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     res.json({ candidates: data });
   } catch (error) {
     console.error('Get top candidates error:', error);

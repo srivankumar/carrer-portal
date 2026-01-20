@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTopCandidates } from '../hooks/useApplications';
 import { applicationApi } from '../services/api';
-import { ArrowLeft, Award, Trophy, Download, Mail, User } from 'lucide-react';
+import { ArrowLeft, Award, Trophy, Download, Mail, User, RefreshCw } from 'lucide-react';
 
 interface Candidate {
   id: string;
@@ -24,34 +25,18 @@ interface Candidate {
 }
 
 export default function TopCandidates() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(10);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchTopCandidates();
-  }, [limit]);
-
-  const fetchTopCandidates = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await applicationApi.getTopCandidates(limit);
-      if (response?.candidates) {
-        setCandidates(response.candidates);
-      } else {
-        setCandidates([]);
-      }
-    } catch (err) {
-      console.error('Failed to fetch top candidates:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load candidates');
-      setCandidates([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+  // Use React Query hook for caching
+  const { 
+    data: candidates = [], 
+    isLoading: loading, 
+    error: queryError, 
+    refetch 
+  } = useTopCandidates(limit);
+  
+  const error = queryError ? (queryError as Error).message : null;
 
   const getRankIcon = (index: number) => {
     if (index === 0) return <Trophy className="w-6 h-6 text-yellow-500" />;
@@ -99,18 +84,29 @@ export default function TopCandidates() {
               <p className="text-slate-600">Highest scoring candidates across all applications</p>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-slate-700">Show:</label>
-              <select
-                value={limit}
-                onChange={(e) => setLimit(parseInt(e.target.value))}
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => refetch()}
+                className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
+                title="Hard refresh - fetch latest data"
               >
-                <option value={10}>Top 10</option>
-                <option value={20}>Top 20</option>
-                <option value={50}>Top 50</option>
-                <option value={100}>Top 100</option>
-              </select>
+                <RefreshCw className="w-4 h-4" />
+                <span>Refresh</span>
+              </button>
+              
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-slate-700">Show:</label>
+                <select
+                  value={limit}
+                  onChange={(e) => setLimit(parseInt(e.target.value))}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                >
+                  <option value={10}>Top 10</option>
+                  <option value={20}>Top 20</option>
+                  <option value={50}>Top 50</option>
+                  <option value={100}>Top 100</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>

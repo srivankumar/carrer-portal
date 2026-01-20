@@ -16,20 +16,38 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    const { data: userData, error: userError } = await supabase
+    let { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (userError) {
-      console.error('User lookup error:', userError);
-      return res.status(404).json({ error: 'User not found', details: userError.message });
+    // Auto-create user if not found in database
+    if (!userData) {
+      console.log('⚠️ User not found in database, creating entry for:', user.id);
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+          role: 'user',
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('❌ Failed to create user:', createError);
+        return res.status(500).json({ error: 'Failed to create user profile' });
+      }
+
+      userData = newUser;
+      console.log('✅ User profile created successfully');
     }
 
-    if (!userData) {
-      console.error('User not found in users table:', user.id);
-      return res.status(404).json({ error: 'User not found in database' });
+    if (userError && userError.code !== 'PGRST116') {
+      console.error('User lookup error:', userError);
+      return res.status(404).json({ error: 'User not found', details: userError.message });
     }
 
     req.user = userData;

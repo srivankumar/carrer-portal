@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useMyApplications } from "../hooks/useApplications";
 import { applicationApi } from "../services/api";
 import {
   ArrowLeft,
@@ -34,37 +35,14 @@ interface Application {
 }
 
 export default function MyApplications() {
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchApplications();
-  }, []);
-
-  const fetchApplications = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await applicationApi.getMyApplications();
-      if (response?.applications && Array.isArray(response.applications)) {
-        setApplications(response.applications);
-      } else {
-        setApplications([]);
-      }
-    } catch (err) {
-      console.error("Fetch applications error:", err);
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load applications. Please try again.";
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+  // Use React Query hook for caching
+  const { data: applications = [], isLoading: loading, error: queryError, refetch } = useMyApplications();
+  const error = queryError ? (queryError as Error).message : null;
 
   const handleDownload = async (resumeKey: string, jobTitle: string) => {
     try {
@@ -167,7 +145,17 @@ export default function MyApplications() {
         </button>
 
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">My Applications</h1>
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-4xl font-bold text-slate-900">My Applications</h1>
+            <button
+              onClick={() => refetch()}
+              className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
+              title="Hard refresh - fetch latest data"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh</span>
+            </button>
+          </div>
           <p className="text-slate-600">Track the status of all your job applications</p>
         </div>
 

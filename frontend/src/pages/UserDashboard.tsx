@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { jobApi } from '../services/api';
-import { Briefcase, Calendar, Clock, LogOut, FileText, Search } from 'lucide-react';
+import { useActiveJobs } from '../hooks/useJobs';
+import { Briefcase, Calendar, Clock, LogOut, FileText, Search, RefreshCw } from 'lucide-react';
 
 interface Job {
   id: string;
@@ -15,24 +15,12 @@ interface Job {
 }
 
 export default function UserDashboard() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchJobs();
-  }, []);
-
-  const fetchJobs = async () => {
-    setLoading(true);
-    const response = await jobApi.getActiveJobs();
-    if (response.jobs) {
-      setJobs(response.jobs);
-    }
-    setLoading(false);
-  };
+  
+  // Use React Query hook for caching and auto-refresh
+  const { data: jobs = [], isLoading: loading, refetch } = useActiveJobs();
 
   const handleLogout = () => {
     logout();
@@ -47,7 +35,7 @@ export default function UserDashboard() {
     });
   };
 
-  const filteredJobs = jobs.filter((job) => {
+  const filteredJobs = jobs.filter((job: Job) => {
     const query = searchQuery.toLowerCase();
     return (
       job.title.toLowerCase().includes(query) ||
@@ -95,8 +83,20 @@ export default function UserDashboard() {
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Available Jobs</h1>
-          <p className="text-sm sm:text-base text-slate-600 mb-4">Find your dream job and apply today</p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Available Jobs</h1>
+              <p className="text-sm sm:text-base text-slate-600">Find your dream job and apply today</p>
+            </div>
+            <button
+              onClick={() => refetch()}
+              className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition text-sm"
+              title="Hard refresh - fetch latest data"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
 
           <div className="relative">
             <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />

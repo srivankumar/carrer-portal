@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { applicationApi, jobApi } from '../services/api';
-import { ArrowLeft, Filter, Award, Download, Mail, User } from 'lucide-react';
+import { useAllApplications } from '../hooks/useApplications';
+import { useAllJobs } from '../hooks/useJobs';
+import { applicationApi } from '../services/api';
+import { ArrowLeft, Filter, Award, Download, Mail, User, RefreshCw } from 'lucide-react';
 
 interface Application {
   id: string;
@@ -29,56 +31,27 @@ interface Job {
 }
 
 export default function AllApplications() {
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     jobId: '',
     status: '',
     minScore: '',
   });
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchJobs();
-    fetchApplications();
-  }, []);
-
-  const fetchJobs = async () => {
-    try {
-      const response = await jobApi.getAllJobs();
-      if (response?.jobs) {
-        setJobs(response.jobs);
-      }
-    } catch (err) {
-      console.error('Failed to fetch jobs:', err);
-    }
-  };
-
-  const fetchApplications = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const filterParams: any = {};
-      if (filters.jobId) filterParams.jobId = filters.jobId;
-      if (filters.status) filterParams.status = filters.status;
-      if (filters.minScore) filterParams.minScore = parseInt(filters.minScore);
-
-      const response = await applicationApi.getAllApplications(filterParams);
-      if (response?.applications) {
-        setApplications(response.applications);
-      } else {
-        setApplications([]);
-      }
-    } catch (err) {
-      console.error('Failed to fetch applications:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load applications');
-      setApplications([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+  // Use React Query hooks for caching
+  const { data: jobs = [] } = useAllJobs();
+  const { 
+    data: applications = [], 
+    isLoading: loading, 
+    error: queryError, 
+    refetch 
+  } = useAllApplications(
+    filters.jobId || undefined,
+    filters.status || undefined,
+    filters.minScore ? Number(filters.minScore) : undefined
+  );
+  
+  const error = queryError ? (queryError as Error).message : null;
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     setFilters({
@@ -88,12 +61,12 @@ export default function AllApplications() {
   };
 
   const handleApplyFilters = () => {
-    fetchApplications();
+    refetch();
   };
 
   const handleClearFilters = () => {
     setFilters({ jobId: '', status: '', minScore: '' });
-    setTimeout(fetchApplications, 100);
+    setTimeout(() => refetch(), 100);
   };
 
   const handleDownload = async (resumeKey: string) => {
@@ -148,7 +121,17 @@ export default function AllApplications() {
         </button>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">All Applications</h1>
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-3xl font-bold text-slate-900">All Applications</h1>
+            <button
+              onClick={() => refetch()}
+              className="flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
+              title="Hard refresh - fetch latest data"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh</span>
+            </button>
+          </div>
           <p className="text-slate-600">View and manage all candidate applications</p>
         </div>
 
